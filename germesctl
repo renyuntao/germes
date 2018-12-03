@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+
+import sys
+import sqlite3
+import argparse
+from Ren import tools
+from Ren.tools import Script
+
+BOLD    = "\033[1m"
+ERROR   = "\033[31m"
+INFO    = "\033[33m"
+WARNING = "\033[34m"
+NORMAL  = "\033[0m"
+
+def help(wantReturn=True):
+	usage = """ %(prog)s -C CONFIG [-a|-d|-c] [-s NUM]
+	%(prog)s -h"""
+
+	if wantReturn:
+		return usage
+	else:
+		usage = usage.replace('(prog)', '')
+		print("usage: ", end='')
+		print(usage % (Script, Script))
+
+if len(sys.argv) == 1:
+	help(False)
+	exit(0)
+
+# Parse command line options
+parser = argparse.ArgumentParser(prog=Script,
+			description="Opertate germes",
+			usage=help())
+parser.add_argument('-C', '--config', metavar="CONFIG", help="Specify config file")
+parser.add_argument('-a', '--add', action='count', help="Add info into germes")
+parser.add_argument('-d', '--delete', action='count', help="Delete info from germes")
+parser.add_argument('-c', '--create', action='count', help="Create new table and add info to it")
+parser.add_argument('-s', '--start', metavar="NUM", help="Specify begin number. This option only have effect when used with -a or -c")
+args = parser.parse_args()
+
+if args.config is None:
+	print(ERROR + "{0}: Error: You should use -C option to specify config file.".format(Script) + NORMAL)
+	help(False)
+	exit(0)
+else:
+	config = args.config
+
+total = 0
+total = total + 1 if args.add else total
+total = total + 1 if args.delete else total
+total = total + 1 if args.create else total
+if total != 1:
+	print(ERROR + "{0}: Error: You should specify an option in -a, -c, -d.".format(Script) + NORMAL)
+	help(False)
+	exit(0)
+
+addFlag = True
+addFlag = False if args.delete else True
+
+
+confDict = tools.load()
+
+germesConf = tools.load(config)
+
+germes = list(germesConf.keys())[0]
+db = "{0}/{1}".format(confDict['data'], germes)
+
+conn = sqlite3.connect(db)
+cursor = conn.cursor()
+
+for table in germesConf[germes]:
+	print(BOLD + "====== {0} ======".format(table) + NORMAL)
+	tableData = germesConf[germes][table]
+	if addFlag:
+		if args.create:
+			sql = "DROP TABLE IF EXISTS `{0}`".format(table)
+			cursor.execute(sql)
+
+		sql = "CREATE TABLE IF NOT EXISTS `{0}` (key TEXT NOT NULL PRIMARY KEY, value BLOB)".format(table)
+		cursor.execute(sql)
+
+		if type(tableData) == type(list()):
+			counter = int(args.start) if args.start else 1
+			for elem in tableData:
+				if args.add:
+					sql = "SELECT * FROM `{0}` WHERE key='{1}'".format(table, elem)
+					cursor.execute(sql)
+					res = cursor.fetchall()
+					if len(res) != 0:
+						print(WARNING + "Warning: '{0}' already exist, ignore this item.".format(elem) + NORMAL)
+						continue
+
+				sql = "INSERT INTO `{0}` VALUES ('{1}', '{2}')".format(table, elem, counter)
+				cursor.execute(sql)
+				counter += 1
+		elif type(tableData) == type(dict()):
+			for key in tableData.keys():
+				if args.add:
+					sql = "SELECT * FROM `{0}` WHERE key='{1}'".format(table, key)
+					cursor.execute(sql)
+					res = cursor.fetchall()
+					if len(res) != 0:
+						print(WARNING + "Warning: '{0}' already exist, ignore this item.".format(key) + NORMAL)
+						continue
+
+				sql = "INSERT INTO `{0}` VALUES ('{1}', '{2}')".format(table, key, tableData[key])
+				cursor.execute(sql)
+		else:
+			print(Error + "Error: Unrecognized config." + NORMAL)
+			exit(1)
+	else:
+		sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='{0}'".format(table)
+		cursor.execute(sql)
+		res = cursor.fetchall()
+		if len(res) == 0:
+			print(ERROR + "Error: table '{0}' not exist.".format(table) + NORMAL)
+			exit(1)
+			
+		if type(tableData) == type(list()):
+			for elem in tableData:
+				sql = "DELETE FROM `{0}` WHERE key='{1}'".format(table, elem)
+				cursor.execute(sql)
+		elif type(tableData) == type(dict()):
+			for key in tableData.keys():
+				sql = "DELETE FROM `{0}` WHERE key='{1}'".format(table, key)
+				cursor.execute(sql)
+		else:
+			print(ERROR + "Error: Unrecognized config." + NORMAL)
+			exit(1)
+
+	print(INFO + "Success." + NORMAL)
+
+conn.commit()
+conn.close()

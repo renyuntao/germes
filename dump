@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+#
+# Example:
+#
+# * Dump DEMO
+#   __file__ DEMO
+#
+# * Dump 'zzzc@1', 'zzbc2@1' of DEMO
+#   __file__ DEMO -t 'zzzc@1,zzbc2@1'
+#
+# * Dump 'zzzc@1', 'zzbc2@1' of DEMO that value >= 1
+#   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '1'
+#
+# * Same as above
+#   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '1~'
+#
+# * Dump 'zzzc@1', 'zzbc2@1' of DEMO that value <= 10
+#   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '~10'
+#
+# * Dump 'zzzc@1', 'zzbc2@1' of DEMO that value >= 1 and value <= 10
+#   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '1~10'
+
+import os
+import sys
+import sqlite3
+import argparse
+from Ren import tools
+from Ren.tools import Script
+
+BOLD   = "\033[1m"
+NORMAL = "\033[0m"
+
+def help(wantReturn=True):
+	usage = """ %(prog)s [-v] [-k] [-t TABLE] [-r RANGE] GERMES
+	%(prog)s -h"""
+
+	if wantReturn:
+		return usage
+	else:
+		usage = usage.replace('(prog)', '')
+		print("usage: ", end='')
+		print(usage % (Script, Script))
+
+if len(sys.argv) == 1:
+	help(False)
+	exit(0)
+
+# Parse command line options
+parser = argparse.ArgumentParser(prog=Script,
+			description="Dump germes",
+			usage=help())
+parser.add_argument('-v', '--verbose', action='count', help="Show table even it is empty")
+parser.add_argument('-k', '--key', action='count', help="Only show key of item in table")
+parser.add_argument('-t', '--table', metavar='TABLE1[,TABLE2...]', help="Specify which table to show, default show all table")
+parser.add_argument('-r', '--range', metavar='BEGEN~END', help="Specify the range of item that should to display")
+parser.add_argument('germes', metavar='GERMES', help="Specify germes name")
+args = parser.parse_args()
+
+if args.germes is None:
+	print("{0}: Error usage.".format(Script))
+	help(False)
+	exit(0)
+else:
+	germes = args.germes
+
+TABLES = args.table.split(',') if args.table else False
+
+range_ = False
+# Get range if use -r option
+if args.range:
+	RANGE  = args.range.split('~')
+	length = len(RANGE)
+	if length == 2:
+		beg, end = RANGE[:2]
+	elif length == 1:
+		beg, end = RANGE[0], False
+	else:
+		print("Error: Unrecognized parameter: '{0}'".format(args.range))
+		exit(3)
+
+	try:
+		beg = int(beg)
+	except ValueError:
+		beg = None
+
+	try:
+		end = int(end)
+	except ValueError:
+		end = None
+
+	begCond = "CAST(value as INTEGER) >= {0}".format(beg) if beg is not None  else False
+	endCond = "CAST(value as INTEGER) <= {0}".format(end) if end is not None else False
+
+	if begCond and endCond:
+		condition = "WHERE {0} AND {1}".format(begCond, endCond)
+		range_ = True
+	elif begCond:
+		condition = "WHERE {0}".format(begCond)
+		range_ = True
+	elif endCond:
+		condition = "WHERE {0}".format(endCond)
+		range_ = True
+	else:
+		pass
+
+
+
+confDict = tools.load()
+db = "{0}/{1}".format(confDict['data'], germes)
+
+if not os.path.isfile(db):
+	print("Error: no such germes: '{0}'".format(germes))
+	exit(1)
+
+conn = sqlite3.connect(db)
+cursor = conn.cursor()
+
+# Get all table
+sql = "SELECT name FROM sqlite_master WHERE type='table'"
+cursor.execute(sql)
+tables = cursor.fetchall()
+
+result = {germes: {}}
+for table in tables:
+	table = table[0]
+	if args.table is not None and table not in TABLES:
+		continue
+
+	result[germes][table] = {}
+	tableData = result[germes][table]
+
+	sql = "SELECT * FROM `{0}`".format(table)
+
+	if range_:
+		sql = "{0} {1}".format(sql, condition)
+
+	cursor.execute(sql)
+	res = cursor.fetchall()
+
+	for k,v in res:
+		tableData[k] = v
+
+	# If table is empty, then delete it
+	if not bool(result[germes][table]) and args.verbose is None:
+		del result[germes][table]
+
+if not bool(result[germes]) and args.verbose is None:
+	del result[germes]
+
+
+if args.key is not None and result:
+	for table in result[germes]:
+		print(BOLD + "=== {0} ===".format(table) + NORMAL)
+		for itme in result[germes][table]:
+			print(itme)
+else:
+	tools.dict2yaml(result)
