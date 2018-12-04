@@ -79,6 +79,11 @@ for table in germesConf[germes]:
 		sql = "CREATE TABLE IF NOT EXISTS `{0}` (key TEXT NOT NULL PRIMARY KEY, value BLOB)".format(table)
 		cursor.execute(sql)
 
+		# Convert table data to list if it is string
+		if type(tableData) == type(str()):
+				tableData = tableData.split()
+				hermesConf[hermes][table] = tableData
+
 		if type(tableData) == type(list()):
 			counter = int(args.start) if args.start else 1
 			for elem in tableData:
