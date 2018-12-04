@@ -1,0 +1,9 @@
+demo1:    # DB name
+  info:  # Table name
+    user: Tom   # item in table
+  shbt@1:
+    - host1.shbt.example.com
+  zzzc@1:
+    - host2.zzzc.example.com
+  alias:
+    monitor.example.com: host2.zzzc.example.com
