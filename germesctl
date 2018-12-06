@@ -13,7 +13,7 @@ WARNING = "\033[34m"
 NORMAL  = "\033[0m"
 
 def help(wantReturn=True):
-	usage = """ %(prog)s -C CONFIG [-a|-d|-c] [-s NUM]
+	usage = """ %(prog)s -C CONFIG [-a|-d|-c|-n] [-s NUM]
 	%(prog)s -h"""
 
 	if wantReturn:
@@ -35,6 +35,7 @@ parser.add_argument('-C', '--config', metavar="CONFIG", help="Specify config fil
 parser.add_argument('-a', '--add', action='count', help="Add info into germes")
 parser.add_argument('-d', '--delete', action='count', help="Delete info from germes")
 parser.add_argument('-c', '--create', action='count', help="Create new table and add info to it")
+parser.add_argument('-n', '--new', action='count', help="Create new database")
 parser.add_argument('-s', '--start', metavar="NUM", help="Specify begin number. This option only have effect when used with -a or -c")
 args = parser.parse_args()
 
@@ -49,8 +50,9 @@ total = 0
 total = total + 1 if args.add else total
 total = total + 1 if args.delete else total
 total = total + 1 if args.create else total
+total = total + 1 if args.new else total
 if total != 1:
-	print(ERROR + "{0}: Error: You should specify an option in -a, -c, -d.".format(Script) + NORMAL)
+	print(ERROR + "{0}: Error: You should specify an option in -a, -c, -d, -n.".format(Script) + NORMAL)
 	help(False)
 	exit(0)
 
@@ -68,6 +70,19 @@ db = "{0}/{1}".format(confDict['data'], germes)
 conn = sqlite3.connect(db)
 cursor = conn.cursor()
 
+# Create new database
+if args.new:
+	# Get all tables
+	sql = "SELECT name FROM sqlite_master WHERE type='table'"
+	cursor.execute(sql)
+	tables = cursor.fetchall()
+
+	# Drop all table in database
+	for table in tables:
+		table = table[0]
+		sql = "DROP TABLE IF EXISTS `{0}`".format(table)
+		cursor.execute(sql)
+
 for table in germesConf[germes]:
 	print(BOLD + "====== {0} ======".format(table) + NORMAL)
 	tableData = germesConf[germes][table]
@@ -81,8 +96,8 @@ for table in germesConf[germes]:
 
 		# Convert table data to list if it is string
 		if type(tableData) == type(str()):
-				tableData = tableData.split()
-				hermesConf[hermes][table] = tableData
+			tableData = tableData.split()
+			germesConf[germes][table] = tableData
 
 		if type(tableData) == type(list()):
 			counter = int(args.start) if args.start else 1

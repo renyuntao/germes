@@ -5,5 +5,3 @@ demo1:    # DB name
     - host1.shbt.example.com
   zzzc@1:
     - host2.zzzc.example.com
-  alias:
-    monitor.example.com: host2.zzzc.example.com
