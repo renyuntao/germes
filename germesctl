@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import sqlite3
 import argparse
@@ -10,10 +11,11 @@ BOLD    = "\033[1m"
 ERROR   = "\033[31m"
 INFO    = "\033[33m"
 WARNING = "\033[34m"
+CYAN    = "\033[36m"
 NORMAL  = "\033[0m"
 
 def help(wantReturn=True):
-	usage = """ %(prog)s -C CONFIG [-a|-d|-c|-n] [-s NUM]
+	usage = """ %(prog)s -C CONFIG [-a|-d|-c|-n|-D] [-s NUM]
 	%(prog)s -h"""
 
 	if wantReturn:
@@ -31,9 +33,10 @@ if len(sys.argv) == 1:
 parser = argparse.ArgumentParser(prog=Script,
 			description="Opertate germes",
 			usage=help())
-parser.add_argument('-C', '--config', metavar="CONFIG", help="Specify config file")
+parser.add_argument('-C', '--config', metavar="CONFIG", help="Specify config file, or hermers name(when use -D option)")
 parser.add_argument('-a', '--add', action='count', help="Add info into germes")
 parser.add_argument('-d', '--delete', action='count', help="Delete info from germes")
+parser.add_argument('-D', '--delete-germes', action='count', help="Delete germes")
 parser.add_argument('-c', '--create', action='count', help="Create new table and add info to it")
 parser.add_argument('-n', '--new', action='count', help="Create new database")
 parser.add_argument('-s', '--start', metavar="NUM", help="Specify begin number. This option only have effect when used with -a or -c")
@@ -51,21 +54,32 @@ total = total + 1 if args.add else total
 total = total + 1 if args.delete else total
 total = total + 1 if args.create else total
 total = total + 1 if args.new else total
+total = total + 1 if args.delete_germes else total
 if total != 1:
-	print(ERROR + "{0}: Error: You should specify an option in -a, -c, -d, -n.".format(Script) + NORMAL)
+	print(ERROR + "{0}: Error: You should specify an option in -a, -c, -d, -n, -D.".format(Script) + NORMAL)
 	help(False)
 	exit(0)
 
-addFlag = True
-addFlag = False if args.delete else True
-
-
 confDict = tools.load()
+dataDir = confDict['data']
+
+if args.delete_germes:
+	germes = os.path.basename(config)
+	db = os.path.join(dataDir, germes)
+	if not os.path.exists(db):
+		print(ERROR + "Warning: " + INFO + germes + ERROR + " is not exists!" + NORMAL)
+		exit(1)
+
+	os.system("rm -rf {0}".format(db))
+	print(CYAN + "Delete " + INFO + germes + CYAN + " success!" + NORMAL)
+	exit(0)
 
 germesConf = tools.load(config)
-
 germes = list(germesConf.keys())[0]
-db = "{0}/{1}".format(confDict['data'], germes)
+db = os.path.join(dataDir, germes)
+
+addFlag = True
+addFlag = False if args.delete else True
 
 conn = sqlite3.connect(db)
 cursor = conn.cursor()

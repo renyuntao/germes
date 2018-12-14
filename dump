@@ -10,6 +10,8 @@
 #
 # * Dump 'zzzc@1', 'zzbc2@1' of DEMO that value >= 1
 #   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '1'
+#   or
+#   __file__ DEMO -t '{zzzc,zzbc2}@1' -r '1'
 #
 # * Same as above
 #   __file__ DEMO -t 'zzzc@1,zzbc2@1' -r '1~'
@@ -24,6 +26,7 @@ import os
 import sys
 import sqlite3
 import argparse
+import subprocess
 from Ren import tools
 from Ren.tools import Script
 
@@ -52,7 +55,7 @@ parser = argparse.ArgumentParser(prog=Script,
 parser.add_argument('-v', '--verbose', action='count', help="Show table even it is empty")
 parser.add_argument('-k', '--key', action='count', help="Only show key of item in table")
 parser.add_argument('-c', '--concise', action='count', help="Concise output, only have effect when used with -k")
-parser.add_argument('-t', '--table', metavar='TABLE1[,TABLE2...]', help="Specify which table to show, default show all table")
+parser.add_argument('-t', '--table', metavar='TABLE1[,TABLE2...]', help="Specify which table to show, support range expr, default show all table")
 parser.add_argument('-r', '--range', metavar='BEGEN~END', help="Specify the range of item that should to display")
 parser.add_argument('germes', metavar='HERMES [HERMES...]', nargs='+', help="Specify germes name")
 args = parser.parse_args()
@@ -67,7 +70,12 @@ else:
 
 confDict = tools.load()
 for germes in germes_list:
-	TABLES = args.table.split(',') if args.table else False
+	if args.table:
+		cmd = "Prange -l '{0}'".format(args.table)
+		result = subprocess.check_output(cmd, shell=True)
+		TABLES = result.decode('utf8').strip().split('\n')
+	else:
+		TABLES = []
 
 	range_ = False
 	# Get range if use -r option
